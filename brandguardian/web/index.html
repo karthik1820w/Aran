@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aran: review before you publish</title>
+  <meta name="description" content="Aran (Brand Guardian) checks content against your approved guidelines and facts, explains every issue, and keeps people in charge of approval.">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true" focusable="false">
+        <circle cx="16" cy="16" r="15" class="mark-ring"/>
+        <path d="M9 16.5l4.8 4.8L23.5 11" class="mark-tick"/>
+      </svg>
+      <span class="brand-name">Aran</span>
+      <span class="brand-tag">v0.2</span>
+    </div>
+    <div class="chips" id="chips" hidden>
+      <span class="chip" id="chipAi" title="Whether a language model helps with judgement checks"></span>
+      <span class="chip" id="chipOut" title="Bytes sent to any external service, after redaction"></span>
+      <span class="who" id="who"></span>
+      <button type="button" class="link" id="signOut">Sign out</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Sections" hidden>
+    <button type="button" role="tab" aria-selected="false" data-tab="write" id="tab-write" aria-controls="view-write">Write</button>
+    <button type="button" role="tab" aria-selected="false" data-tab="queue" id="tab-queue" aria-controls="view-queue">Review queue</button>
+    <button type="button" role="tab" aria-selected="false" data-tab="insights" id="tab-insights" aria-controls="view-insights">Insights</button>
+    <button type="button" role="tab" aria-selected="false" data-tab="trust" id="tab-trust" aria-controls="view-trust">Trust</button>
+    <button type="button" role="tab" aria-selected="false" data-tab="about" id="tab-about" aria-controls="view-about">Status</button>
+  </nav>
+
+  <ol class="guide" id="guide" aria-label="Guided path" hidden></ol>
+  <p class="guide-hint" id="guideHint" hidden></p>
+
+  <main id="main" tabindex="-1">
+    <!-- Sign in -->
+    <section id="view-login" class="view" role="tabpanel">
+      <div class="hero">
+        <h1>Review brand content before it goes public.</h1>
+        <p class="lead">Aran checks drafts against your own guidelines and approved facts, shows exactly which rule or source each flag relies on, and leaves every decision to a person.</p>
+      </div>
+      <h2 class="section-title">Choose a demo account</h2>
+      <div class="accounts" id="accounts" role="list"></div>
+      <div class="try">
+        <h3>A two-minute tour</h3>
+        <ol>
+          <li>Sign in as <strong>Asha</strong>, press <strong>Load sample post</strong> and watch the notes appear.</li>
+          <li>Accept the suggested fixes. Blocking issues must be fixed before approval.</li>
+          <li>Submit, then sign in as <strong>Meera</strong> to approve and get a signed receipt.</li>
+        </ol>
+        <p class="small">The brand, its rules and its facts are fictional demo data. Nothing here is sent to an external service unless an API key is configured.</p>
+      </div>
+    </section>
+
+    <!-- Write -->
+    <section id="view-write" class="view" role="tabpanel" aria-labelledby="tab-write" hidden>
+      <div class="write-grid">
+        <div class="manuscript">
+          <div class="doc-head">
+            <label class="sr-only" for="title">Title</label>
+            <input id="title" type="text" maxlength="120" placeholder="Title, for example: Launch post" autocomplete="off">
+            <button type="button" class="btn btn-sm" id="editTitle" aria-label="Edit title" hidden>✏️</button>
+            <span class="badge" id="statusBadge"></span>
+          </div>
+          <div class="banner" id="lockBanner" hidden></div>
+          <div class="editor">
+            <div class="backdrop" id="backdrop" aria-hidden="true"></div>
+            <label class="sr-only" for="text">Draft text</label>
+            <textarea id="text" spellcheck="false" placeholder="Write or paste your draft here, or press "Load sample post"."></textarea>
+          </div>
+          <div class="editor-foot">
+            <span id="voice" class="muted"></span>
+            <span id="dirty" class="muted"></span>
+          </div>
+          <div class="checks" id="checks" aria-label="Checks" aria-live="polite"></div>
+          <p class="ai-line" id="aiLine"></p>
+          <div class="actions">
+            <button type="button" class="btn" id="loadSample">Load sample post</button>
+            <button type="button" class="btn" id="newDraft">New draft</button>
+            <button type="button" class="btn primary" id="save">Save draft</button>
+            <button type="button" class="btn primary" id="submit">Submit for review</button>
+            <span class="loading-indicator" id="loadingIndicator" hidden aria-live="polite">Saving…</span>
+          </div>
+          <label class="trap" id="trapRow" hidden>
+            <input type="checkbox" id="simulate">
+            <span><strong>Hallucination trap.</strong> Simulate an unreliable model that invents rules, quotes and text. Watch the verifier reject all of it.</span>
+          </label>
+          <div id="claims" class="claims" hidden></div>
+          <div id="receiptBox"></div>
+        </div>
+
+        <aside class="notes" aria-label="Notes">
+          <h2>Notes <span class="count" id="noteCount"></span></h2>
+          <p class="hint" id="notesHint"></p>
+          <ol class="note-list" id="notesList"></ol>
+          <details class="tool">
+            <summary>Check a colour pair for accessibility</summary>
+            <div class="tool-body">
+              <label>Text colour <input type="text" id="fg" value="#777777" maxlength="7"></label>
+              <label>Background <input type="text" id="bg" value="#ffffff" maxlength="7"></label>
+              <label class="inline"><input type="checkbox" id="large"> Large text</label>
+              <button type="button" class="btn" id="checkContrast">Check</button>
+              <p id="contrastOut" class="small" aria-live="polite"></p>
+            </div>
+          </details>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Review queue -->
+    <section id="view-queue" class="view" role="tabpanel" aria-labelledby="tab-queue" hidden>
+      <div class="queue-grid">
+        <div>
+          <h2 class="section-title">Content</h2>
+          <ul class="queue" id="queueList"></ul>
+        </div>
+        <div id="detail" class="detail"></div>
+      </div>
+    </section>
+
+    <!-- Insights -->
+    <section id="view-insights" class="view" role="tabpanel" aria-labelledby="tab-insights" hidden>
+      <h2 class="section-title">Guideline Health</h2>
+      <p class="lead small-lead">When people keep dismissing or overriding the same rule, the rule may be unclear. This view shows where the guidelines, not the writers, may need work.</p>
+      <div id="insightsBody"></div>
+    </section>
+
+    <!-- Trust -->
+    <section id="view-trust" class="view" role="tabpanel" aria-labelledby="tab-trust" hidden>
+      <h2 class="section-title">Privacy X-ray</h2>
+      <div id="xray"></div>
+      <h2 class="section-title">Audit trail</h2>
+      <div id="auditBody"></div>
+    </section>
+
+    <!-- Status -->
+    <section id="view-about" class="view" role="tabpanel" aria-labelledby="tab-about" hidden>
+      <div id="aboutBody"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

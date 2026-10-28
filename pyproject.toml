@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aran"
+version = "0.2.0"
+description = "Aran: evidence-grounded brand governance — review content before publication, explain every flag, keep humans in control."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []          # standard library only, on purpose
+
+[project.scripts]
+aran = "brandguardian.__main__:main"
+brandguardian = "brandguardian.__main__:main"   # backwards-compat alias
+
+[tool.setuptools.packages.find]
+include = ["brandguardian*"]
+
+[tool.setuptools.package-data]
+brandguardian = ["web/*"]

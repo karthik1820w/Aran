@@ -1,0 +1,85 @@
+{
+  "brand": "Nova Foods (fictional demo brand)",
+  "guideline": {"name": "Nova Foods Brand Guidelines", "version": "3.2"},
+  "rules": [
+    {"id": "BG-1.3", "clause": "1.3", "title": "Exclamation marks", "severity": "warning",
+     "text": "Use at most one exclamation mark in any piece of copy."},
+    {"id": "BG-1.4", "clause": "1.4", "title": "Capital letters", "severity": "info",
+     "text": "Avoid words written entirely in capital letters, except approved acronyms."},
+    {"id": "BG-1.5", "clause": "1.5", "title": "Sentence length", "severity": "info",
+     "text": "Keep sentences short: aim for an average of no more than 24 words per sentence."},
+    {"id": "BG-3.1", "clause": "3.1", "title": "Customers", "severity": "warning",
+     "text": "Always say customers. Do not use clients or users for people who buy Nova products."},
+    {"id": "BG-3.2", "clause": "3.2", "title": "Product name", "severity": "warning",
+     "text": "Write the product name exactly as Nova Bar. Do not write NovaBar or Nova bar."},
+    {"id": "BG-4.1", "clause": "4.1", "title": "Rankings and superlatives", "severity": "blocker",
+     "text": "Rankings such as number one, best-selling or most trusted may be used only with a dated third-party source recorded in the Claim Ledger."},
+    {"id": "BG-4.2", "clause": "4.2", "title": "Absolute promises", "severity": "blocker",
+     "text": "Do not promise outcomes. The words guaranteed, 100% safe, risk-free and cure are not permitted in any Nova copy."},
+    {"id": "BG-4.3", "clause": "4.3", "title": "Health and time-bound claims", "severity": "blocker",
+     "text": "Statements about health benefits or results within a timeframe need approved evidence in the Claim Ledger before use."},
+    {"id": "BG-4.4", "clause": "4.4", "title": "Nutrition figures", "severity": "blocker",
+     "text": "Nutrition figures must match the current value in the Claim Ledger."},
+    {"id": "BG-5.1", "clause": "5.1", "title": "Personal data and credentials", "severity": "blocker",
+     "text": "Never include personal data, contact details or credentials in published copy."},
+    {"id": "BG-6.1", "clause": "6.1", "title": "Alternative text", "severity": "warning",
+     "text": "Every image needs alternative text that describes what it shows."},
+    {"id": "BG-6.2", "clause": "6.2", "title": "Link text", "severity": "info",
+     "text": "Use descriptive link text. Avoid phrases such as click here."},
+    {"id": "BG-7.1", "clause": "7.1", "title": "Instructions to systems", "severity": "warning",
+     "text": "Copy must not contain instructions addressed to automated tools, AI systems or reviewers."}
+  ],
+  "glossary": [
+    {"rule_id": "BG-3.1", "preferred": "customers", "avoid": ["clients", "users"]},
+    {"rule_id": "BG-3.2", "preferred": "Nova Bar", "avoid": ["NovaBar", "Nova bar"], "case_sensitive": true}
+  ],
+  "restricted": [
+    {"rule_id": "BG-4.2", "patterns": [
+      {"pattern": "\\bguarantee[ds]?\\b", "alternatives": ["designed"]},
+      {"pattern": "\\b100\\s?%\\s+(?:safe|natural|effective)\\b", "alternatives": ["made with care"]},
+      {"pattern": "\\brisk[- ]free\\b", "alternatives": ["made with care"]},
+      {"pattern": "\\bcures?\\b", "alternatives": []}
+    ]}
+  ],
+  "claim_rules": [
+    {"id": "CR-RANK", "rule_id": "BG-4.1", "kind": "ranking", "topic": "rankings", "severity": "blocker",
+     "patterns": ["#\\s?1\\b", "\\bnumber\\s+(?:one|1)\\b", "\\bbest[- ]selling\\b", "\\bbest\\s+(?:snack|protein)\\s+bar\\b", "\\bmost\\s+(?:loved|trusted|popular)\\b"]},
+    {"id": "CR-HEALTH", "rule_id": "BG-4.3", "kind": "health", "topic": "protein", "severity": "blocker",
+     "patterns": ["\\bcurbs?\\s+cravings?(?:\\s+in\\s+\\d+\\s+days?)?", "\\bboosts?\\s+(?:immunity|metabolism)\\b", "\\bin\\s+\\d+\\s+days?\\b", "\\bclinically\\s+(?:proven|tested)\\b", "\\blose\\s+weight\\b"]}
+  ],
+  "ledger": [
+    {"id": "C-102", "statement": "20 g of protein per Nova Bar", "source": "Nutrition label v7 (fictional)",
+     "owner": "product@nova.example", "valid_from": "2026-01-01", "valid_until": "2027-06-30",
+     "topics": ["protein"], "rule_id": "BG-4.4",
+     "matches": ["\\b20\\s?g(?:rams)?\\s+of\\s+protein"],
+     "extract": "(?P<value>\\d+(?:\\.\\d+)?)\\s?g(?:rams)?\\s+of\\s+protein", "expected": "20"},
+    {"id": "C-103", "statement": "Made with whole oats and almonds", "source": "Ingredient list v4 (fictional)",
+     "owner": "product@nova.example", "valid_from": "2026-01-01", "valid_until": "2027-06-30",
+     "topics": ["ingredients"], "matches": ["\\bwhole\\s+oats\\b"]},
+    {"id": "C-201", "statement": "Voted Best Snack Bar by the Metro Readers Poll 2024", "source": "Metro Readers Poll 2024 (fictional)",
+     "owner": "brand@nova.example", "valid_from": "2024-06-01", "valid_until": "2025-12-31",
+     "topics": ["rankings"], "rule_id": "BG-4.1", "matches": ["\\bbest\\s+snack\\s+bar\\b", "\\breaders\\s+poll\\b"]},
+    {"id": "C-301", "statement": "Contains no artificial colours", "source": "Ingredient list v4 (fictional)",
+     "owner": "product@nova.example", "valid_from": "2026-01-01", "valid_until": "2027-06-30",
+     "topics": ["ingredients"], "matches": ["\\bno\\s+artificial\\s+colou?rs\\b"]}
+  ],
+  "voice": {
+    "exclamation_rule": "BG-1.3", "caps_rule": "BG-1.4", "sentence_rule": "BG-1.5",
+    "max_exclamations": 1, "max_caps_words": 0, "max_avg_sentence_words": 24,
+    "allowed_acronyms": ["USA", "FSSAI", "ISO", "MRP", "FAQ", "PDF", "UK", "AI", "FDA", "WCAG"]
+  },
+  "pii_rule": "BG-5.1",
+  "alt_text_rule": "BG-6.1",
+  "link_text_rule": "BG-6.2",
+  "injection": {
+    "rule_id": "BG-7.1",
+    "patterns": [
+      "ignore\\s+(?:all\\s+|any\\s+|the\\s+)?(?:previous|prior|above)\\s+(?:instructions|rules)",
+      "disregard\\s+(?:the\\s+|all\\s+)?(?:rules|guidelines|instructions)",
+      "(?:approve|accept)\\s+this\\s+(?:content|post|draft)\\s+(?:without|regardless)",
+      "you\\s+are\\s+now\\s+(?:an?\\s+)?(?:unrestricted|different)",
+      "system\\s+prompt"
+    ]
+  },
+  "sample_post": "Meet NovaBar, India's #1 protein bar! Our clients love it. Each bar has 25 g of protein, guaranteed to curb cravings in 7 days!! Voted best snack bar by the Metro Readers Poll. Questions? Email asha.rao@gmail.com or call +91 98765 43210. ![](https://nova.example/bar.png) Click here to order."
+}

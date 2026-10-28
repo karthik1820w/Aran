@@ -1,0 +1,3 @@
+# Brand Guardian has no runtime dependencies: it uses only the Python standard library.
+# Optional, for the real-browser test only (not needed to run or to pass `make test`):
+#   npm install -g playwright && npx playwright install chromium

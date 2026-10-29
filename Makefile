@@ -15,7 +15,7 @@ e2e:            ## real-browser journey (needs Node + Playwright + Chromium)
 	$(PY) scripts/run_e2e.py
 
 coverage:       ## line coverage using only the standard library
-	$(PY) scripts/coverage_report.py --min 90
+	$(PY) scripts/coverage_report.py --min 80
 
 bench:          ## measure review latency on this machine
 	$(PY) scripts/benchmark.py

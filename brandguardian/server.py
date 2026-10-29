@@ -544,7 +544,7 @@ class BGHandler(BaseHTTPRequestHandler):
         try:
             for event in events:
                 chunk((json.dumps(event, ensure_ascii=False) + "\n").encode("utf-8"))
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             self.close_connection = True
             return
         except Exception:  # noqa: BLE001 - report generically inside the stream, never leak details
@@ -553,7 +553,7 @@ class BGHandler(BaseHTTPRequestHandler):
         try:
             self.wfile.write(b"0\r\n\r\n")
             self.wfile.flush()
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             self.close_connection = True
 
     def _client_key(self, user: Optional[User], token: Optional[str]) -> str:
@@ -645,7 +645,7 @@ class BGHandler(BaseHTTPRequestHandler):
             self._json(exc.status, exc.to_dict())
         except ReviewError as exc:
             self._error(400, "invalid_input", str(exc))
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             self.close_connection = True
         except Exception:  # noqa: BLE001 - never leak internals to the client
             log.exception("unhandled error for %s %s", method, self.path)

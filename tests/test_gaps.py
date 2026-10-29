@@ -55,7 +55,7 @@ class _Fake(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(type(self).body)))
             self.end_headers()
             self.wfile.write(type(self).body)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass  # the client gave up (that is what the timeout test does on purpose)
 
     def log_message(self, *a):

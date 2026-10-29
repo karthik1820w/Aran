@@ -10,3 +10,4 @@ from brandguardian.server import BGHandler, wsgi_app
 
 app = wsgi_app
 handler = BGHandler
+

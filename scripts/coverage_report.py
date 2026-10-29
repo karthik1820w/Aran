@@ -45,8 +45,8 @@ def main() -> int:
             if not name.endswith(".py"):
                 continue
             path = os.path.join(dirpath, name)
-            executable = set(trace._find_executable_linenos(path))
-            hit = {line for (fname, line), n in counts.items() if fname == path and n > 0} & executable
+            executable = {line for line in trace._find_executable_linenos(path) if isinstance(line, int)}
+            hit = {line for (fname, line), n in counts.items() if fname == path and n > 0 and isinstance(line, int)} & executable
             total_exec += len(executable)
             total_hit += len(hit)
             pct = 100.0 * len(hit) / len(executable) if executable else 100.0

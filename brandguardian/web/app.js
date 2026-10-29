@@ -426,10 +426,12 @@ function noteCard(flag, { readOnly = false } = {}) {
     h('div', { class: 'note-top' },
       h('span', { class: `pill sev-${sev}` }, SEVERITY_LABEL[sev]),
       flag.method === 'ai' ? h('span', { class: 'pill ai' }, 'AI') : null,
+      flag.advisory ? h('span', { class: 'advisory-badge' }, 'Advisory OCR') : null,
       flag.verdict ? h('span', { class: `pill v-${flag.verdict}` }, flag.verdict) : null,
       h('span', { class: 'note-title' }, issueLabel(flag.issue_type))),
     h('div', {}, h('span', { class: 'note-text' }, `“${flag.text.length > 90 ? `${flag.text.slice(0, 89)}…` : flag.text}”`)),
     h('p', {}, flag.explanation),
+    flag.precedent ? h('div', { class: 'precedent-box' }, h('strong', {}, '🏛️ Precedent: '), flag.precedent.summary) : null,
     h('div', { class: 'seal' },
       h('span', { class: 'seal-label' }, `✓ Verified source · ${flag.rule_id}`),
       h('blockquote', {}, flag.evidence_quote),
@@ -543,20 +545,27 @@ async function receiptCard(receiptId) {
       h('dt', {}, 'Guidelines'), h('dd', {}, b.knowledge_base.version),
       h('dt', {}, 'Checks run'), h('dd', {}, b.checks_run.join(', ') || 'none recorded'),
       h('dt', {}, 'Overrides'), h('dd', {}, b.overrides.length ? b.overrides.map((o) => `${o.rule_id}: ${o.reason}`).join(' | ') : 'none'),
-      h('dt', {}, 'Signature'), h('dd', {}, `${b.algorithm} ${rec.signature.slice(0, 24)}…`)),
-    h('div', {}, h('button', { type: 'button', class: 'btn ok', onclick: async () => {
-      state.openedReceipt = true; renderGuide();
-      try {
-        const v = await api('GET', `/api/receipts/${receiptId}/verify`);
-        clear(out);
-        const labels = {
-          signature_valid: 'Signature matches the receipt', content_unchanged: 'Approved text is unchanged',
-          audit_chain_intact: 'Audit chain is intact', audit_entry_matches: 'Audit entry matches the receipt',
-        };
-        for (const [k, ok] of Object.entries(v.checks)) out.append(h('div', { class: ok ? 'pass' : 'fail' }, `${labels[k]}${ok ? '' : ': FAILED'}`));
-        out.append(h('strong', {}, v.valid ? 'Receipt verified.' : 'Receipt could NOT be verified.'));
-      } catch (e) { toast(e.message, 'error'); }
-    } }, 'Verify receipt')),
+      h('dt', {}, 'Signature'), h('dd', {}, `${b.algorithm || 'Ed25519'} ${rec.signature.slice(0, 24)}…`),
+      b.public_key ? h('dt', {}, 'Public key') : null,
+      b.public_key ? h('dd', { class: 'hash' }, `${b.public_key.slice(0, 20)}…`) : null),
+    h('div', {},
+      h('button', { type: 'button', class: 'btn ok', onclick: async () => {
+        state.openedReceipt = true; renderGuide();
+        try {
+          const v = await api('GET', `/api/receipts/${receiptId}/verify`);
+          clear(out);
+          const labels = {
+            signature_valid: 'Public-key signature matches the receipt',
+            content_unchanged: 'Approved text is unchanged',
+            audit_chain_intact: 'Audit chain is intact',
+            audit_entry_matches: 'Audit entry matches the receipt',
+            external_anchor_verified: 'External audit anchor confirmed',
+          };
+          for (const [k, ok] of Object.entries(v.checks)) out.append(h('div', { class: ok ? 'pass' : 'fail' }, `${labels[k] || k}${ok ? '' : ': FAILED'}`));
+          out.append(h('strong', {}, v.valid ? '✓ Receipt verified with public key & external anchor.' : 'Receipt could NOT be verified.'));
+        } catch (e) { toast(e.message, 'error'); }
+      } }, 'Verify receipt'),
+      h('a', { href: `/verify?id=${receiptId}`, target: '_blank', class: 'btn', style: 'margin-left: 8px;' }, 'Public verification page ↗')),
     out);
   return card;
 }
@@ -570,15 +579,29 @@ async function renderReceiptBox() {
 
 /* ---------------------------------------------------------------- review queue */
 async function loadQueue() {
-  const { items } = await api('GET', '/api/content');
-  const order = { in_review: 0, changes_requested: 1, draft: 2, approved_with_conditions: 3, approved: 3 };
-  items.sort((a, b) => (order[a.status] - order[b.status]) || b.updated_at.localeCompare(a.updated_at));
+  let items = [];
+  try {
+    if (roleCan(state.user.role, 'review')) {
+      const q = await api('GET', '/api/queue');
+      items = q.queue || [];
+    } else {
+      const res = await api('GET', '/api/content');
+      items = res.items || [];
+    }
+  } catch {
+    const res = await api('GET', '/api/content');
+    items = res.items || [];
+  }
   const list = clear($('queueList'));
   if (!items.length) list.append(h('li', { class: 'small' }, roleCan(state.user.role, 'write') ? 'Nothing here yet. Write something in the Write tab.' : 'Nothing to review yet.'));
   for (const it of items) {
+    const metaKids = [h('span', {}, it.author_name), h('span', { class: `badge ${it.status}` }, STATUS_LABELS[it.status])];
+    if (it.risk_level) {
+      metaKids.push(h('span', { class: `risk-badge ${it.risk_level}`, title: (it.risk_factors || []).join(', ') }, `${it.risk_level} risk`));
+    }
     list.append(h('li', {}, h('button', { type: 'button', 'aria-current': state.detail && state.detail.id === it.id ? 'true' : 'false', onclick: () => openDetail(it.id) },
       h('strong', {}, it.title),
-      h('span', { class: 'meta' }, h('span', {}, it.author_name), h('span', { class: `badge ${it.status}` }, STATUS_LABELS[it.status])))));
+      h('span', { class: 'meta' }, ...metaKids))));
   }
   if (state.detail) { try { await openDetail(state.detail.id); } catch { state.detail = null; } }
   else if (!clear($('detail')).firstChild) $('detail').append(h('p', { class: 'muted' }, items.length ? 'Choose an item to read it, see its notes and decide.' : ''));
@@ -741,24 +764,81 @@ async function loadInsights() {
   const statuses = Object.entries(data.content_by_status);
   box.append(h('div', { class: 'panel' }, h('div', { class: 'sub' }, 'Content by status'),
     statuses.length ? h('p', {}, statuses.map(([k, n]) => `${STATUS_LABELS[k]}: ${n}`).join(' · ')) : h('p', { class: 'muted' }, 'No content yet.')));
+
+  const unclearRules = data.rules.filter((r) => r.status === 'unclear' || (r.clarifications && r.clarifications.length));
+  if (unclearRules.length) {
+    const clarBox = h('div', { class: 'panel', style: 'margin-top: 1rem;' },
+      h('div', { class: 'sub' }, 'Suggested Guideline Clarifications (Human Approval Gate)'),
+      h('p', { class: 'small' }, 'Clarifying examples drawn from real disputes. Approving adds them to guideline guidance (suggestions only, never auto-applied).')
+    );
+    for (const r of unclearRules) {
+      const cls = r.clarifications || [];
+      const item = h('div', { class: 'clarification-box' },
+        h('strong', {}, `${r.rule_id}: ${r.title}`),
+        cls.length ? cls.map((c) => h('div', { style: 'margin-top: 6px;' },
+          h('div', { class: 'do' }, c.proposed_do),
+          h('div', { class: 'dont' }, c.proposed_dont),
+          h('div', { class: 'rationale' }, `${c.rationale} · Status: ${c.status}`),
+          c.status === 'pending' && roleCan(state.user.role, 'review') ? h('button', {
+            type: 'button', class: 'btn btn-sm ok', style: 'margin-top: 4px;',
+            onclick: async () => {
+              await api('POST', `/api/insights/clarifications/${c.id}/review`, { action: 'approve' });
+              toast('Clarification approved and added to guidelines.');
+              loadInsights();
+            }
+          }, 'Approve clarification') : null
+        )) : h('div', { style: 'margin-top: 6px;' },
+          h('button', {
+            type: 'button', class: 'btn btn-sm',
+            onclick: async () => {
+              await api('POST', '/api/insights/clarifications/propose', { rule_id: r.rule_id });
+              toast('Clarification proposed from dispute history.');
+              loadInsights();
+            }
+          }, 'Generate clarifying example from disputes')
+        )
+      );
+      clarBox.append(item);
+    }
+    box.append(clarBox);
+  }
 }
 
 async function loadTrust() {
   const flow = await api('GET', '/api/dataflow');
   const x = clear($('xray'));
+  const isConfidential = flow.ai && flow.ai.provider === 'local-confidential';
   x.append(h('div', { class: 'panel' },
     h('div', {}, h('div', { class: 'big' }, formatBytes(flow.external_bytes_sent)), h('div', { class: 'muted' }, 'sent to any external service so far')),
-    h('p', {}, flow.ai.enabled
-      ? `Model: ${flow.ai.provider} / ${flow.ai.model}. Personal data is masked before anything is sent; the entries below show exactly what a model saw.`
-      : 'No model is configured, so exact checks run locally and no text leaves this system.'),
+    isConfidential
+      ? h('p', { class: 'audit-ok' }, '🔒 Confidential Local Mode: All evaluation runs locally on-premise. Outbound bytes are strictly zero.')
+      : h('p', {}, flow.ai.enabled
+        ? `Model: ${flow.ai.provider} / ${flow.ai.model}. Personal data is masked before anything is sent; the entries below show exactly what a model saw.`
+        : 'No model is configured, so exact checks run locally and no text leaves this system.'),
+    h('div', {},
+      h('button', { type: 'button', class: 'btn', onclick: async () => {
+        try {
+          const res = await api('POST', '/api/settings/confidential', { enabled: !isConfidential });
+          toast(`Confidential local mode: ${res.confidential_mode ? 'ENABLED (0 outbound calls)' : 'DISABLED'}`);
+          loadTrust();
+        } catch (e) { toast(e.message, 'error'); }
+      } }, isConfidential ? 'Disable Confidential Mode' : 'Enable Confidential Local Mode (0 Outbound Calls)')),
     ...(flow.entries.length ? flow.entries.slice().reverse().map((e) => h('div', {},
-      h('p', { class: 'small' }, `${e.at} · ${e.provider} · ${e.external ? 'EXTERNAL' : 'local, not sent outside'} · ${e.redactions} item(s) masked · ${formatBytes(e.bytes)}`),
+      h('p', { class: 'small' }, `${e.at} · ${e.provider} · ${e.external ? 'EXTERNAL' : 'local on-premise (0 bytes out)'} · ${e.redactions} item(s) masked · ${formatBytes(e.bytes)}`),
       h('pre', { class: 'payload' }, e.payload.length > 1500 ? `${e.payload.slice(0, 1500)}\n…` : e.payload))) : [h('p', { class: 'muted' }, 'No model calls yet.')])));
   const a = clear($('auditBody'));
   if (!roleCan(state.user.role, 'audit')) { a.append(h('p', { class: 'muted' }, 'The audit trail is visible to reviewers, managers and admins.')); return; }
   const audit = await api('GET', '/api/audit');
   a.append(h('p', {}, audit.chain_intact ? h('span', { class: 'audit-ok' }, '✓ Hash chain intact: no entry has been altered or removed.')
     : h('span', { class: 'audit-bad' }, `✗ Chain broken at entry ${audit.first_bad_seq}.`)),
+  h('div', { style: 'margin-bottom: 12px;' },
+    h('button', { type: 'button', class: 'btn ok', onclick: async () => {
+      try {
+        const anchor = await api('POST', '/api/audit/anchor');
+        toast(`Audit chain anchored externally: ${anchor.anchor_id}`);
+        loadTrust();
+      } catch (e) { toast(e.message, 'error'); }
+    } }, '⚓ Anchor Audit Chain Externally')),
   h('table', { class: 'table' },
     h('thead', {}, h('tr', {}, h('th', { class: 'num' }, '#'), h('th', {}, 'When'), h('th', {}, 'Who'), h('th', {}, 'Action'), h('th', {}, 'Hash'))),
     h('tbody', {}, audit.entries.slice().reverse().map((e) => h('tr', {}, h('td', { class: 'num' }, String(e.seq)), h('td', {}, e.ts), h('td', {}, e.actor), h('td', {}, e.action), h('td', { class: 'hash' }, e.hash.slice(0, 12)))))));
@@ -800,6 +880,68 @@ function initControls() {
       out.textContent = `Contrast ${r.ratio}:1. AA ${r.aa ? 'pass' : 'fail'} (needs ${r.aa_minimum}:1), AAA ${r.aaa ? 'pass' : 'fail'}.${r.suggested_foreground ? ` Nearest passing text colour: ${r.suggested_foreground}.` : ''}`;
     } catch (e) { out.textContent = e.message; }
   });
+
+  // Claim-bound drafting
+  if ($('claimDraft')) {
+    $('claimDraft').addEventListener('click', async () => {
+      const topic = prompt('What topic should be drafted from Claim Ledger facts?', 'NovaBar nutrition and protein facts');
+      if (!topic) return;
+      try {
+        toast('Drafting from approved Claim Ledger facts…');
+        const res = await api('POST', '/api/draft/claim-bound', { topic });
+        $('title').value = `Draft: ${topic.slice(0, 40)}`;
+        setText(res.text);
+        if (res.verified) {
+          toast('✓ Claim-bound draft generated: All sentences link to Claim Ledger facts!', 'info');
+        } else {
+          toast(`Draft created with ${res.verification?.rejected_sentences || 0} unlinked sentence(s).`, 'error');
+        }
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  }
+
+  // Multi-format upload (DOCX, PDF, HTML, Image)
+  if ($('fileUpload')) {
+    $('fileUpload').addEventListener('change', async (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          toast(`Extracting & reviewing ${file.name}…`);
+          const base64Data = reader.result.split(',')[1];
+          const res = await api('POST', '/api/review/upload', { filename: file.name, data: base64Data });
+          $('title').value = file.name.replace(/\.[^/.]+$/, '');
+          if (res.extracted_text) {
+            setText(res.extracted_text);
+          }
+          if (res.accessibility_lens) {
+            renderLens(res.accessibility_lens);
+            $('lensDetails').open = true;
+          }
+          toast(`Extracted ${res.format.toUpperCase()} (${res.extracted_text ? res.extracted_text.length : 0} chars). ${res.advisory ? 'Advisory OCR applied.' : ''}`);
+        } catch (e) { toast(e.message, 'error'); }
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+}
+
+function renderLens(lens) {
+  const box = clear($('lensReport'));
+  if (!lens || !lens.regions || !lens.regions.length) {
+    box.append(h('p', { class: 'muted small' }, 'No graphic regions detected in upload.'));
+    return;
+  }
+  box.append(h('p', { class: 'small' }, `Audited ${lens.total_regions} visual region(s). ${lens.compliant ? '✓ All regions pass WCAG & Brand Palette.' : 'Issues detected below:'}`));
+  for (const pf of lens.palette_flags || []) {
+    box.append(h('div', { class: 'lens-flag palette' },
+      h('strong', {}, '🎨 Off-palette: '), pf.message));
+  }
+  for (const cf of lens.contrast_flags || []) {
+    box.append(h('div', { class: 'lens-flag contrast' },
+      h('strong', {}, '👁️ Contrast failure: '), cf.message));
+  }
 }
 
 async function init() {

@@ -83,6 +83,11 @@
           <div class="actions">
             <button type="button" class="btn" id="loadSample">Load sample post</button>
             <button type="button" class="btn" id="newDraft">New draft</button>
+            <button type="button" class="btn" id="claimDraft">Draft from facts (Claim-bound)</button>
+            <label class="btn" style="cursor: pointer;" title="Upload DOCX, PDF, HTML or Image poster">
+              Upload doc/poster
+              <input type="file" id="fileUpload" accept=".docx,.pdf,.html,.htm,.png,.jpg,.jpeg,.svg" hidden>
+            </label>
             <button type="button" class="btn primary" id="save">Save draft</button>
             <button type="button" class="btn primary" id="submit">Submit for review</button>
             <span class="loading-indicator" id="loadingIndicator" hidden aria-live="polite">Saving…</span>
@@ -107,6 +112,15 @@
               <label class="inline"><input type="checkbox" id="large"> Large text</label>
               <button type="button" class="btn" id="checkContrast">Check</button>
               <p id="contrastOut" class="small" aria-live="polite"></p>
+            </div>
+          </details>
+          <details class="tool" id="lensDetails">
+            <summary>Accessibility Lens (Palette & Contrast)</summary>
+            <div class="tool-body">
+              <p class="small">Poster & layout check: measures Euclidean palette distance and WCAG ratios with suggested fixes.</p>
+              <div id="lensReport">
+                <p class="muted small">Upload an SVG/image poster or run a draft check to view lens results.</p>
+              </div>
             </div>
           </details>
         </aside>

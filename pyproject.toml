@@ -19,3 +19,6 @@ include = ["brandguardian*"]
 
 [tool.setuptools.package-data]
 brandguardian = ["web/*"]
+
+[tool.vercel]
+entrypoint = "app.py"

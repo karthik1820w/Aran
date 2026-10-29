@@ -319,6 +319,26 @@ pre.payload { margin: 0; font: 12px/1.5 var(--mono); white-space: pre-wrap; over
 .version-item:last-child { border-bottom: 0; }
 .version-item strong { color: var(--ink); }
 
+/* Tier 2: differentiators styles */
+.risk-badge { font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 2px 7px; border-radius: 9999px; letter-spacing: 0.04em; }
+.risk-badge.high { background: var(--red-soft); color: var(--red); border: 1px solid var(--red); }
+.risk-badge.medium { background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber); }
+.risk-badge.low { background: var(--green-soft); color: var(--green); border: 1px solid var(--green); }
+
+.precedent-box { margin-top: 6px; padding: 6px 10px; background: rgba(79,126,248,0.08); border-left: 3px solid var(--blue); border-radius: 4px; font-size: 12px; color: var(--ink2); line-height: 1.4; }
+.precedent-box strong { color: var(--ink); }
+
+.lens-flag { padding: 8px 10px; border-radius: 6px; margin-top: 6px; font-size: 12px; border: 1px solid var(--line); }
+.lens-flag.contrast { background: rgba(240,80,80,0.08); border-color: rgba(240,80,80,0.3); color: var(--ink); }
+.lens-flag.palette { background: rgba(232,160,32,0.08); border-color: rgba(232,160,32,0.3); color: var(--ink); }
+
+.clarification-box { margin-top: 8px; padding: 10px 12px; background: var(--soft); border: 1px dashed var(--line); border-radius: 8px; font-size: 13px; }
+.clarification-box .do { color: var(--green); font-weight: 600; margin-bottom: 4px; }
+.clarification-box .dont { color: var(--red); font-weight: 600; margin-bottom: 6px; }
+.clarification-box .rationale { color: var(--muted); font-size: 11px; }
+
+.advisory-badge { font-size: 11px; background: var(--amber-soft); color: var(--amber); border: 1px solid var(--amber); border-radius: 4px; padding: 1px 5px; font-weight: 600; margin-left: 6px; }
+
 @media (max-width: 900px) {
   .write-grid, .queue-grid { grid-template-columns: 1fr; }
   .notes { position: static; max-height: none; top: auto; }

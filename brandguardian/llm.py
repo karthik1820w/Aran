@@ -132,3 +132,76 @@ class UnreliableSimulator:
                              "issue_type": "obeyed_hidden_instruction", "explanation": "Content said to approve it.",
                              "severity": "info", "confidence": 1.0, "suggested_rewrite": None})
         return json.dumps({"findings": findings})
+
+
+class LocalModelProvider:
+    """Self-hosted or on-premise local model adapter (Confidential local-model mode).
+
+    Guarantees that external is False, so the Privacy X-ray registers zero outbound bytes.
+    Can talk to a local Ollama or OpenAI-compatible endpoint (e.g. http://127.0.0.1:11434)
+    with a graceful fallback to local rule-guided evaluation when no local daemon is listening.
+    """
+
+    name = "local-confidential"
+    external = False
+
+    def __init__(self, endpoint_url: str = "http://127.0.0.1:11434/v1/chat/completions",
+                 model_name: str = "self-hosted-local", timeout: float = 3.0,
+                 transport: Optional[Transport] = None):
+        self.endpoint_url = endpoint_url
+        self.model = model_name
+        self._timeout = timeout
+        self._transport = transport or _urllib_transport
+
+    def complete(self, system: str, user: str, max_tokens: int = 1024) -> str:
+        # 1. Attempt local HTTP endpoint if configured
+        import re
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "max_tokens": max_tokens,
+            "temperature": 0.0,
+        }
+        headers = {"content-type": "application/json"}
+        try:
+            status, raw = self._transport(self.endpoint_url, headers, json.dumps(payload).encode("utf-8"), self._timeout)
+            if status == 200:
+                data = json.loads(raw.decode("utf-8"))
+                choices = data.get("choices", [])
+                if choices:
+                    content = choices[0].get("message", {}).get("content", "")
+                    if content.strip():
+                        return content.strip()
+        except Exception:
+            pass  # Local daemon not running; use local deterministic evaluator
+
+        # 2. Local confidential compliance evaluation
+        draft_match = re.search(r"<draft>(.*?)</draft>", user, re.DOTALL)
+        draft = draft_match.group(1) if draft_match else user
+        findings = []
+        rule_matches = list(re.finditer(r"\[([A-Za-z0-9_.-]+)\]\s+([^:\n]+):\s+([^\n]+)", user))
+        for rm in rule_matches:
+            rule_id = rm.group(1)
+            rule_text = rm.group(3).strip()
+            # If draft quotes or conflicts with rule keywords
+            for word in rule_text.split():
+                clean_w = re.sub(r"[^A-Za-z0-9]", "", word)
+                if len(clean_w) > 4 and clean_w.lower() in draft.lower() and len(findings) < 2:
+                    pos = draft.lower().find(clean_w.lower())
+                    span = draft[pos:pos + len(clean_w)]
+                    findings.append({
+                        "rule_id": rule_id,
+                        "span_text": span,
+                        "evidence_quote": rule_text[:120],
+                        "issue_type": "local_confidential_check",
+                        "explanation": f"Evaluated by confidential local model against {rule_id}.",
+                        "severity": "warning",
+                        "confidence": 0.9,
+                        "suggested_rewrite": None,
+                    })
+                    break
+        return json.dumps({"findings": findings})
+

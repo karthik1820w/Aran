@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS audit(seq INTEGER PRIMARY KEY, prev_hash TEXT NOT NUL
 CREATE TABLE IF NOT EXISTS receipts(id TEXT PRIMARY KEY, content_id TEXT NOT NULL, version_n INTEGER NOT NULL, body_json TEXT NOT NULL,
   signature TEXT NOT NULL, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS anchors(id TEXT PRIMARY KEY, seq INTEGER NOT NULL, head_hash TEXT NOT NULL, anchored_at TEXT NOT NULL, witness_signature TEXT NOT NULL, proof_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS rule_clarifications(id TEXT PRIMARY KEY, rule_id TEXT NOT NULL, proposed_do TEXT NOT NULL, proposed_dont TEXT NOT NULL, rationale TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, reviewed_by TEXT, reviewed_at TEXT, review_comment TEXT);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
@@ -237,6 +239,83 @@ class Store:
 
     def list_receipts(self, content_id: str) -> List[Dict[str, Any]]:
         return self._all("SELECT id,version_n,created_at FROM receipts WHERE content_id=? ORDER BY created_at", (content_id,))
+
+    # anchors
+    def add_anchor(self, anchor_id: str, seq: int, head_hash: str, ts: str, signature: str, proof: Dict[str, Any]) -> None:
+        self._run("INSERT INTO anchors(id,seq,head_hash,anchored_at,witness_signature,proof_json) VALUES(?,?,?,?,?,?)",
+                  (anchor_id, seq, head_hash, ts, signature, json.dumps(proof)))
+
+    def latest_anchor(self) -> Optional[Dict[str, Any]]:
+        row = self._one("SELECT * FROM anchors ORDER BY seq DESC LIMIT 1")
+        if row and row.get("proof_json"):
+            row["proof"] = json.loads(row["proof_json"])
+        return row
+
+    def list_anchors(self, limit: int = 20) -> List[Dict[str, Any]]:
+        rows = self._all("SELECT * FROM anchors ORDER BY seq DESC LIMIT ?", (limit,))
+        for r in rows:
+            if r.get("proof_json"):
+                r["proof"] = json.loads(r["proof_json"])
+        return rows
+
+    # precedents
+    def get_precedents_for_rule(self, rule_id: str, limit: int = 5) -> Dict[str, Any]:
+        """Precedent view: query how similar flags for this rule were decided before."""
+        counts = {r["action"]: r["c"] for r in self._all(
+            "SELECT action, COUNT(*) AS c FROM decisions WHERE rule_id=? GROUP BY action", (rule_id,))}
+        total = sum(counts.values())
+        overridden = counts.get("overridden", 0)
+        accepted = counts.get("accepted", 0)
+        dismissed = counts.get("dismissed", 0)
+        recent_overrides = self._all(
+            "SELECT actor_id, reason, created_at, content_id FROM decisions WHERE rule_id=? AND action='overridden' ORDER BY id DESC LIMIT ?",
+            (rule_id, limit))
+        sample_reasons = [r["reason"] for r in recent_overrides if r.get("reason")]
+        rate = round(overridden / total, 2) if total > 0 else 0.0
+        if total == 0:
+            summary = "No past human decisions recorded for this rule yet."
+        elif overridden > 0:
+            summary = f"Rule had {total} past decisions: {overridden} overridden ({int(rate*100)}%), {accepted} fixed. Precedent indicates reviewers frequently permit exceptions."
+        else:
+            summary = f"Rule had {total} past decisions with 0 overrides (100% adherence)."
+        return {
+            "rule_id": rule_id,
+            "total_decisions": total,
+            "overridden": overridden,
+            "accepted": accepted,
+            "dismissed": dismissed,
+            "override_rate": rate,
+            "recent_overrides": recent_overrides,
+            "sample_reasons": sample_reasons,
+            "summary": summary,
+        }
+
+    # rule clarifications (Guideline Health)
+    def add_clarification(self, cid: str, rule_id: str, proposed_do: str, proposed_dont: str, rationale: str) -> None:
+        self._run("INSERT INTO rule_clarifications(id,rule_id,proposed_do,proposed_dont,rationale,status,created_at) VALUES(?,?,?,?,?,?,?)",
+                  (cid, rule_id, proposed_do, proposed_dont, rationale, "pending", utc_now_iso()))
+
+    def list_clarifications(self, rule_id: Optional[str] = None, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM rule_clarifications WHERE 1=1"
+        args: list = []
+        if rule_id:
+            sql += " AND rule_id=?"
+            args.append(rule_id)
+        if status:
+            sql += " AND status=?"
+            args.append(status)
+        sql += " ORDER BY created_at DESC"
+        return self._all(sql, tuple(args))
+
+    def get_clarification(self, cid: str) -> Optional[Dict[str, Any]]:
+        return self._one("SELECT * FROM rule_clarifications WHERE id=?", (cid,))
+
+    def review_clarification(self, cid: str, status: str, reviewed_by: str, comment: str) -> bool:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE rule_clarifications SET status=?, reviewed_by=?, reviewed_at=?, review_comment=? WHERE id=?",
+                (status, reviewed_by, utc_now_iso(), comment, cid))
+            return cur.rowcount > 0
 
     # test hook: direct SQL used only by tests to simulate tampering
     def _tamper(self, sql: str, args: tuple = ()) -> None:

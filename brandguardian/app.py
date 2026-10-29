@@ -8,7 +8,7 @@ from typing import Optional
 from .config import Settings
 from .engine import ReviewEngine
 from .knowledge import KnowledgeBase
-from .llm import AnthropicProvider, LLMProvider
+from .llm import AnthropicProvider, LLMProvider, LocalModelProvider
 from .service import ReviewService
 from .store import Store
 from .workflow import WorkflowService
@@ -29,11 +29,23 @@ class App:
 def build_app(settings: Settings, provider: Optional[LLMProvider] = None) -> App:
     kb_path = settings.kb_path
     if not os.path.isabs(kb_path) and not os.path.exists(kb_path):
-        kb_path = os.path.join(os.path.dirname(PACKAGE_DIR), kb_path)  # resolve relative to the project root
+        candidates = [
+            os.path.join(os.path.dirname(PACKAGE_DIR), kb_path),
+            os.path.join(PACKAGE_DIR, "..", kb_path),
+            os.path.join(os.getcwd(), kb_path),
+            os.path.join(os.path.dirname(PACKAGE_DIR), "data", "demo_brand.json"),
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                kb_path = c
+                break
     kb = KnowledgeBase.from_file(kb_path)
     engine = ReviewEngine(kb, max_chars=settings.max_text_chars)
-    if provider is None and settings.ai_enabled:
-        provider = AnthropicProvider(settings.anthropic_api_key or "", settings.anthropic_model)
+    if provider is None:
+        if settings.confidential_mode:
+            provider = LocalModelProvider(settings.local_model_url)
+        elif settings.ai_enabled:
+            provider = AnthropicProvider(settings.anthropic_api_key or "", settings.anthropic_model)
     reviews = ReviewService(engine, provider, simulator_allowed=settings.demo_mode)
     store = Store(settings.db_path)
     workflow = WorkflowService(store, reviews, settings)

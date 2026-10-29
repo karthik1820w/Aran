@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aran: Public Receipt Verification</title>
+  <meta name="description" content="Independent third-party verification portal for Aran approval receipts using public-key cryptography.">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    .verify-box { max-width: 760px; margin: 2rem auto; background: var(--surface, #ffffff); padding: 2rem; border-radius: 8px; border: 1px solid var(--border, #e2e8f0); }
+    .badge-valid { background: #dcfce7; color: #166534; padding: 0.35rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 0.4rem; }
+    .badge-invalid { background: #fee2e2; color: #991b1b; padding: 0.35rem 0.75rem; border-radius: 9999px; font-weight: 600; font-size: 0.875rem; display: inline-flex; align-items: center; gap: 0.4rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85rem; word-break: break-all; background: #f8fafc; padding: 0.2rem 0.4rem; border-radius: 4px; border: 1px solid #e2e8f0; }
+    .prop-row { display: grid; grid-template-columns: 180px 1fr; gap: 1rem; padding: 0.6rem 0; border-bottom: 1px solid #f1f5f9; }
+    .prop-label { font-weight: 600; color: #475569; }
+    .anchor-card { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 1rem; margin-top: 1rem; }
+    .input-row { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .input-row input { flex: 1; padding: 0.6rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 1rem; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true" focusable="false">
+        <circle cx="16" cy="16" r="15" class="mark-ring"/>
+        <path d="M9 16.5l4.8 4.8L23.5 11" class="mark-tick"/>
+      </svg>
+      <span class="brand-name">Aran</span>
+      <span class="brand-tag">Trust Portal</span>
+    </div>
+    <div>
+      <a href="/" class="link" style="color: white; text-decoration: none;">← Back to App</a>
+    </div>
+  </header>
+
+  <main class="verify-box">
+    <h1>Third-Party Receipt Verification</h1>
+    <p class="lead">Verify the cryptographic authenticity of any Aran brand approval receipt using public keys and external anchor proofs. No account or private key is required.</p>
+
+    <div class="input-row">
+      <input type="text" id="receiptIdInput" placeholder="Enter Receipt ID (e.g. 16-hex characters)" autocomplete="off">
+      <button type="button" class="btn primary" id="btnVerify">Verify</button>
+    </div>
+
+    <details style="margin-bottom: 1.5rem;">
+      <summary style="cursor: pointer; color: #2563eb; font-weight: 500;">Or paste raw receipt JSON</summary>
+      <textarea id="rawJsonInput" rows="5" style="width: 100%; margin-top: 0.5rem; font-family: monospace; padding: 0.5rem;" placeholder='{"body": { ... }, "signature": "..."}'></textarea>
+      <button type="button" class="btn" id="btnVerifyJson" style="margin-top: 0.5rem;">Verify Pasted JSON</button>
+    </details>
+
+    <div id="resultBox" hidden>
+      <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e2e8f0;">
+      <div id="statusBadgeContainer" style="margin-bottom: 1rem;"></div>
+
+      <div class="prop-row">
+        <span class="prop-label">Decision</span>
+        <span id="resDecision" style="font-weight: 600; text-transform: capitalize;"></span>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">Receipt ID</span>
+        <span id="resReceiptId" class="mono"></span>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">Approver</span>
+        <span id="resApprover"></span>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">Approved At</span>
+        <span id="resApprovedAt"></span>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">Content Hash</span>
+        <span id="resContentHash" class="mono"></span>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">Algorithm</span>
+        <span id="resAlgorithm"></span>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">Public Key</span>
+        <span id="resPublicKey" class="mono"></span>
+      </div>
+
+      <div id="anchorBox" class="anchor-card" hidden>
+        <h4 style="margin: 0 0 0.5rem 0; color: #166534;">⚓ External Audit Chain Anchor</h4>
+        <p style="margin: 0 0 0.5rem 0; font-size: 0.875rem;">This receipt is anchored to an external witness record protecting against local data tampering.</p>
+        <div style="font-size: 0.85rem;">
+          <div><strong>Anchor ID:</strong> <span id="resAnchorId" class="mono"></span></div>
+          <div><strong>Sequence:</strong> <span id="resAnchorSeq"></span></div>
+          <div><strong>Head Hash:</strong> <span id="resAnchorHead" class="mono"></span></div>
+          <div><strong>Anchored At:</strong> <span id="resAnchorTime"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="errorBox" class="badge-invalid" style="margin-top: 1rem;" hidden></div>
+  </main>
+
+  <script>
+    const btn = document.getElementById('btnVerify');
+    const btnJson = document.getElementById('btnVerifyJson');
+    const input = document.getElementById('receiptIdInput');
+    const jsonInput = document.getElementById('rawJsonInput');
+    const resultBox = document.getElementById('resultBox');
+    const errorBox = document.getElementById('errorBox');
+    const badgeContainer = document.getElementById('statusBadgeContainer');
+
+    async function verifyId(rid) {
+      errorBox.hidden = true;
+      resultBox.hidden = true;
+      try {
+        const res = await fetch(`/api/receipts/${encodeURIComponent(rid)}/public-verify`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || 'Verification failed');
+        renderResult(data);
+      } catch (err) {
+        errorBox.textContent = '❌ ' + err.message;
+        errorBox.hidden = false;
+      }
+    }
+
+    async function verifyPayload(payload) {
+      errorBox.hidden = true;
+      resultBox.hidden = true;
+      try {
+        const res = await fetch('/api/receipts/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || 'Verification failed');
+        renderResult(data);
+      } catch (err) {
+        errorBox.textContent = '❌ ' + err.message;
+        errorBox.hidden = false;
+      }
+    }
+
+    function renderResult(data) {
+      resultBox.hidden = false;
+      if (data.verified) {
+        badgeContainer.innerHTML = '<span class="badge-valid">✓ Valid Signature: Verified with Public Key</span>';
+      } else {
+        badgeContainer.innerHTML = '<span class="badge-invalid">✗ Invalid Signature or Tampered Receipt</span>';
+      }
+      document.getElementById('resDecision').textContent = data.decision || 'Approved';
+      document.getElementById('resReceiptId').textContent = data.receipt_id || 'N/A';
+      document.getElementById('resApprover').textContent = data.approver ? `${data.approver.name} (${data.approver.role})` : 'N/A';
+      document.getElementById('resApprovedAt').textContent = data.approved_at || 'N/A';
+      document.getElementById('resContentHash').textContent = data.content_hash || 'N/A';
+      document.getElementById('resAlgorithm').textContent = data.algorithm || 'Ed25519';
+      document.getElementById('resPublicKey').textContent = data.public_key || 'N/A';
+
+      const anchor = data.external_anchor;
+      const anchorBox = document.getElementById('anchorBox');
+      if (anchor && anchor.anchor_id) {
+        anchorBox.hidden = false;
+        document.getElementById('resAnchorId').textContent = anchor.anchor_id;
+        document.getElementById('resAnchorSeq').textContent = anchor.seq || '1';
+        document.getElementById('resAnchorHead').textContent = anchor.head_hash || 'N/A';
+        document.getElementById('resAnchorTime').textContent = anchor.anchored_at || 'N/A';
+      } else {
+        anchorBox.hidden = true;
+      }
+    }
+
+    btn.addEventListener('click', () => {
+      const val = input.value.trim();
+      if (val) verifyId(val);
+    });
+
+    btnJson.addEventListener('click', () => {
+      try {
+        const parsed = JSON.parse(jsonInput.value.trim());
+        verifyPayload(parsed);
+      } catch (e) {
+        errorBox.textContent = '❌ Invalid JSON: ' + e.message;
+        errorBox.hidden = false;
+      }
+    });
+
+    // Support URL query param ?id=...
+    const urlParams = new URLSearchParams(window.location.search);
+    const qId = urlParams.get('id');
+    if (qId) {
+      input.value = qId;
+      verifyId(qId);
+    }
+  </script>
+</body>
+</html>
